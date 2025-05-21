@@ -1,21 +1,22 @@
 package programmers.team6.domain.vacation.dto;
 
 public record VacationMonthlyStatisticsResponse(
-        Long memberId,
-        String userName,
-        Long totalCount,
-        Long usedCount,
-        Long remainCount,
-        Long january,
-        Long february,
-        Long march,
-        Long april,
-        Long may,
-        Long june,
-        Long july,
-        Long august,
-        Long september,
-        Long october,
-        Long november,
-        Long december
-) {}
+	Long memberId,
+	String userName,
+	double totalCount,
+	double usedCount,
+	double remainCount,
+	double january,
+	double february,
+	double march,
+	double april,
+	double may,
+	double june,
+	double july,
+	double august,
+	double september,
+	double october,
+	double november,
+	double december
+) {
+}

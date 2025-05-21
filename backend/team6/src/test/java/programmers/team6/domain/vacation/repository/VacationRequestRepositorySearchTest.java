@@ -3,6 +3,8 @@ package programmers.team6.domain.vacation.repository;
 import static org.assertj.core.api.Assertions.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Disabled;
@@ -11,15 +13,24 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
 
-import programmers.team6.domain.admin.dto.AdminVacationRequestSearchCustom;
+import jakarta.persistence.EntityManager;
 import programmers.team6.domain.admin.dto.AdminVacationSearchCondition;
 import programmers.team6.domain.admin.dto.VacationRequestSearchResponse;
 import programmers.team6.domain.admin.enums.Quarter;
+import programmers.team6.domain.admin.repository.AdminVacationRequestSearchCustom;
+import programmers.team6.domain.member.entity.Code;
+import programmers.team6.domain.member.entity.Dept;
+import programmers.team6.domain.member.entity.Member;
+import programmers.team6.domain.member.enums.Role;
 import programmers.team6.domain.member.repository.CodeRepository;
 import programmers.team6.domain.member.repository.DeptRepository;
 import programmers.team6.domain.member.repository.MemberRepository;
+import programmers.team6.domain.vacation.entity.ApprovalStep;
+import programmers.team6.domain.vacation.entity.VacationRequest;
+import programmers.team6.domain.vacation.enums.ApprovalStatus;
 import programmers.team6.domain.vacation.enums.VacationRequestStatus;
 
 @Disabled
@@ -53,76 +64,74 @@ class VacationRequestRepositorySearchTest {
 	// 	memberRepository.deleteAll();
 	// }
 
-	// @Test
-	// @Rollback(value = false)
-	// void init(@Autowired EntityManager entityManager) {
-	// 	Code positionCode = codeRepository.save(new Code("POSITION", "pos", "posName"));
-	//
-	// 	for (int i = 0; i < 3; i++) {
-	// 		Dept dept = deptRepository.save(new Dept("dept " + i));
-	// 		Member member = memberRepository.save(new Member("member " + i, dept, positionCode));
-	// 		List<Member> approvers = new ArrayList<>();
-	// 		for (int j = 0; j < 5; j++) {
-	// 			approvers.add(new Member(String.format("approver %d %d", i, j), dept,
-	// 				new Code("POSITION", "pos " + (10 * i + j + 1), "posName " + (10 * i + j))));
-	// 		}
-	// 		memberRepository.saveAll(approvers);
-	//
-	// 		Code code = codeRepository.save(new Code("VACATION", "vac " + i, "vacName " + i));
-	//
-	// 		// 2023 , 2024 , 2025
-	// 		for (int year = 2023; year < 2026; year++) {
-	// 			// 1 2 3 4
-	// 			for (int month = 1; month < 5; month++) {
-	// 				// 1 2 3
-	// 				for (int day = 1; day < 4; day++) {
-	// 					VacationRequest vr = VacationRequest.builder()
-	// 						.from(LocalDate.of(year, month, day))
-	// 						.to(LocalDate.of(year, month, day + 1))
-	// 						.member(member)
-	// 						.type(code)
-	// 						.build();
-	// 					vacationRequestRepository.save(vr);
-	// 					List<ApprovalStep> approvalSteps = new ArrayList<>();
-	// 					for (int j = 0; j < 3; j++) {
-	// 						if (day == 1) {
-	// 							approvalSteps.add(
-	// 								new ApprovalStep(j, ApprovalStatus.APPROVED, approvers.get(j), vr, null));
-	// 							vr.update(vr.getType(), vr.getFrom(), vr.getTo(), VacationRequestStatus.APPROVED, null);
-	// 						} else {
-	// 							approvalSteps.add(
-	// 								new ApprovalStep(j, ApprovalStatus.IN_PROGRESS, approvers.get(j), vr, null));
-	// 						}
-	// 					}
-	// 					approvalStepRepository.saveAll(approvalSteps);
-	// 				}
-	// 			}
-	// 		}
-	//
-	// 	}
-	// 	entityManager.flush();
-	// 	entityManager.close();
-	// }
-	//
+	@Test
+	@Rollback(value = false)
+	void init(@Autowired EntityManager entityManager) {
+		Code positionCode = codeRepository.save(new Code("POSITION", "pos", "posName"));
+
+		for (int i = 0; i < 3; i++) {
+			Dept dept = deptRepository.save(Dept.builder().deptName("dept " + i).build());
+			Member member = memberRepository.save(
+				new Member("member " + i, dept, positionCode, LocalDateTime.now(), Role.USER));
+			dept.toBuilder().deptLeader(member);
+
+			List<Member> approvers = new ArrayList<>();
+			for (int j = 0; j < 5; j++) {
+				approvers.add(new Member(String.format("approver %d %d", i, j), dept,
+					new Code("POSITION", "pos " + (10 * i + j + 1), "posName " + (10 * i + j)), LocalDateTime.now(),
+					Role.USER));
+			}
+			memberRepository.saveAll(approvers);
+
+			Code code = codeRepository.save(new Code("VACATION", "vac " + i, "vacName " + i));
+
+			// 2023 , 2024 , 2025
+			for (int year = 2023; year < 2026; year++) {
+				// 1 2 3 4
+				for (int month = 1; month < 5; month++) {
+					// 1 2 3
+					for (int day = 1; day < 4; day++) {
+						VacationRequest vr = vacationRequestRepository.save(
+							new VacationRequest(member, LocalDate.of(year, month, day).atStartOfDay(),
+								LocalDate.of(year, month, day + 1).atStartOfDay(), null, code,
+								VacationRequestStatus.APPROVED, 1));
+						List<ApprovalStep> approvalSteps = new ArrayList<>();
+						for (int j = 0; j < 3; j++) {
+							if (day == 1) {
+								approvalSteps.add(
+									new ApprovalStep(approvers.get(j), vr, ApprovalStatus.APPROVED, j, null));
+								vr.update(vr.getType(), vr.getFrom(), vr.getTo(), VacationRequestStatus.APPROVED, null);
+							} else {
+								approvalSteps.add(
+									new ApprovalStep(approvers.get(j), vr, ApprovalStatus.PENDING, j, null));
+							}
+						}
+						approvalStepRepository.saveAll(approvalSteps);
+					}
+				}
+			}
+
+		}
+		entityManager.flush();
+		entityManager.close();
+	}
+
 	@Test
 	void testDefault() {
 		// given
 		AdminVacationSearchCondition defaultCondition = new AdminVacationSearchCondition(
 			new AdminVacationSearchCondition.DateRangeCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApplicantCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApproverCondition(null), null);
+			new AdminVacationSearchCondition.ApplicantCondition(null, null, null, null), null);
 
 		AdminVacationSearchCondition latestCondition = new AdminVacationSearchCondition(
 			new AdminVacationSearchCondition.DateRangeCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApplicantCondition("member 0", null, null, null),
-			new AdminVacationSearchCondition.ApproverCondition(null), null);
+			new AdminVacationSearchCondition.ApplicantCondition("member 0", null, null, null), null);
 
 		// when
 		Page<VacationRequestSearchResponse> defaultResult = adminVacationRequestSearchCustom.search(defaultCondition,
 			PageRequest.of(0, Integer.MAX_VALUE));
 		Page<VacationRequestSearchResponse> defaultPageableResult = adminVacationRequestSearchCustom.search(
-			defaultCondition,
-			PageRequest.of(0, 3));
+			defaultCondition, PageRequest.of(0, 3));
 		Page<VacationRequestSearchResponse> latestResult = adminVacationRequestSearchCustom.search(latestCondition,
 			PageRequest.of(0, Integer.MAX_VALUE));
 
@@ -131,6 +140,7 @@ class VacationRequestRepositorySearchTest {
 		assertThat(defaultPageableResult).hasSize(3);
 
 		for (VacationRequestSearchResponse vacationRequestReadResponse : defaultPageableResult) {
+			assertThat(vacationRequestReadResponse.id()).isNotNull();
 			assertThat(vacationRequestReadResponse.type()).isNotNull();
 			assertThat(vacationRequestReadResponse.from()).isNotNull();
 			assertThat(vacationRequestReadResponse.to()).isNotNull();
@@ -151,17 +161,15 @@ class VacationRequestRepositorySearchTest {
 	void testDate() {
 		// given
 		AdminVacationSearchCondition dateCondition = new AdminVacationSearchCondition(
-			new AdminVacationSearchCondition.DateRangeCondition(LocalDate.of(2025, 1, 1), LocalDate.of(2026, 1, 1),
-				null, null), new AdminVacationSearchCondition.ApplicantCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApproverCondition(null), null);
+			new AdminVacationSearchCondition.DateRangeCondition(LocalDate.of(2025, 1, 1).atStartOfDay(),
+				LocalDate.of(2026, 1, 1).atStartOfDay(), null, null),
+			new AdminVacationSearchCondition.ApplicantCondition(null, null, null, null), null);
 		AdminVacationSearchCondition yearCondition = new AdminVacationSearchCondition(
 			new AdminVacationSearchCondition.DateRangeCondition(null, null, 2025, null),
-			new AdminVacationSearchCondition.ApplicantCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApproverCondition(null), null);
+			new AdminVacationSearchCondition.ApplicantCondition(null, null, null, null), null);
 		AdminVacationSearchCondition yearAndQuarterCondition = new AdminVacationSearchCondition(
 			new AdminVacationSearchCondition.DateRangeCondition(null, null, 2025, Quarter.Q1),
-			new AdminVacationSearchCondition.ApplicantCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApproverCondition(null), null);
+			new AdminVacationSearchCondition.ApplicantCondition(null, null, null, null), null);
 
 		// when
 		Page<VacationRequestSearchResponse> dateResult = adminVacationRequestSearchCustom.search(dateCondition,
@@ -182,8 +190,7 @@ class VacationRequestRepositorySearchTest {
 		// given
 		AdminVacationSearchCondition applicantNameCondition = new AdminVacationSearchCondition(
 			new AdminVacationSearchCondition.DateRangeCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApplicantCondition("0", null, null, null),
-			new AdminVacationSearchCondition.ApproverCondition(null), null);
+			new AdminVacationSearchCondition.ApplicantCondition("0", null, null, null), null);
 
 		// when
 		Page<VacationRequestSearchResponse> result = adminVacationRequestSearchCustom.search(applicantNameCondition,
@@ -201,8 +208,7 @@ class VacationRequestRepositorySearchTest {
 		// given
 		AdminVacationSearchCondition deptNameCondition = new AdminVacationSearchCondition(
 			new AdminVacationSearchCondition.DateRangeCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApplicantCondition(null, "0", null, null),
-			new AdminVacationSearchCondition.ApproverCondition(null), null);
+			new AdminVacationSearchCondition.ApplicantCondition(null, "0", null, null), null);
 
 		Page<VacationRequestSearchResponse> result = adminVacationRequestSearchCustom.search(deptNameCondition,
 			PageRequest.of(0, Integer.MAX_VALUE));
@@ -218,12 +224,10 @@ class VacationRequestRepositorySearchTest {
 		// given
 		AdminVacationSearchCondition applicantVacationTypeCodeIdCondition = new AdminVacationSearchCondition(
 			new AdminVacationSearchCondition.DateRangeCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApplicantCondition(null, null, null, 7L),
-			new AdminVacationSearchCondition.ApproverCondition(null), null);
+			new AdminVacationSearchCondition.ApplicantCondition(null, null, null, 7L), null);
 		AdminVacationSearchCondition applicantPositionCodeIdCondition = new AdminVacationSearchCondition(
 			new AdminVacationSearchCondition.DateRangeCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApplicantCondition(null, null, 1L, null),
-			new AdminVacationSearchCondition.ApproverCondition(null), null);
+			new AdminVacationSearchCondition.ApplicantCondition(null, null, 1L, null), null);
 
 		// when
 		Page<VacationRequestSearchResponse> applicantVacationTypeCodeIdResult = adminVacationRequestSearchCustom.search(
@@ -248,7 +252,7 @@ class VacationRequestRepositorySearchTest {
 		AdminVacationSearchCondition vacationRequestStatusCondition = new AdminVacationSearchCondition(
 			new AdminVacationSearchCondition.DateRangeCondition(null, null, null, null),
 			new AdminVacationSearchCondition.ApplicantCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApproverCondition(null), VacationRequestStatus.APPROVED);
+			VacationRequestStatus.APPROVED);
 
 		// when
 		Page<VacationRequestSearchResponse> vacationRequestStatusResult = adminVacationRequestSearchCustom.search(
@@ -266,13 +270,11 @@ class VacationRequestRepositorySearchTest {
 		// given
 		AdminVacationSearchCondition approverNameCondition = new AdminVacationSearchCondition(
 			new AdminVacationSearchCondition.DateRangeCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApplicantCondition(null, null, null, null),
-			new AdminVacationSearchCondition.ApproverCondition("approver 0"), null);
+			new AdminVacationSearchCondition.ApplicantCondition(null, null, null, null), null);
 
 		// when
 		Page<VacationRequestSearchResponse> approverNameResult = adminVacationRequestSearchCustom.search(
-			approverNameCondition,
-			PageRequest.of(0, Integer.MAX_VALUE));
+			approverNameCondition, PageRequest.of(0, Integer.MAX_VALUE));
 
 		// then
 		assertThat(approverNameResult).hasSize(3 * 4 * 3);

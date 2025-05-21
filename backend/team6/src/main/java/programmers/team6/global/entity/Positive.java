@@ -21,4 +21,16 @@ public final class Positive {
 	public int toInt() {
 		return value;
 	}
+
+	public boolean isEquals(Positive positive) {
+		return this.value == positive.value;
+	}
+
+	public boolean isGraterThan(Positive totalCount) {
+		return this.value > totalCount.value;
+	}
+
+	public boolean isLessThan(Positive totalCount) {
+		return this.value < totalCount.value;
+	}
 }

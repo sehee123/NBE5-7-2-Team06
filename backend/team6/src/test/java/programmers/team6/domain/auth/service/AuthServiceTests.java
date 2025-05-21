@@ -1,6 +1,7 @@
 package programmers.team6.domain.auth.service;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -24,8 +25,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import jakarta.servlet.http.Cookie;
-import programmers.team6.domain.auth.dto.JwtMemberInfo;
-import programmers.team6.domain.auth.dto.TokenPairWithExpiration;
 import programmers.team6.domain.auth.dto.request.MemberLoginRequest;
 import programmers.team6.domain.auth.dto.request.MemberSignUpRequest;
 import programmers.team6.domain.auth.token.JwtTokenProvider;
@@ -33,11 +32,12 @@ import programmers.team6.domain.member.entity.Code;
 import programmers.team6.domain.member.entity.Dept;
 import programmers.team6.domain.member.entity.Member;
 import programmers.team6.domain.member.entity.MemberInfo;
-import programmers.team6.domain.member.enums.Role;
 import programmers.team6.domain.member.repository.CodeRepository;
 import programmers.team6.domain.member.repository.DeptRepository;
 import programmers.team6.domain.member.repository.MemberInfoRepository;
 import programmers.team6.domain.member.repository.MemberRepository;
+import programmers.team6.global.exception.code.NotFoundErrorCode;
+import programmers.team6.global.exception.customException.NotFoundException;
 
 @Transactional
 @SpringBootTest
@@ -87,40 +87,83 @@ public class AuthServiceTests {
 
 	}
 
+	@Test
+	@DisplayName("회원가입 성공 테스트")
+	void signUpSuccessTest() throws Exception {
+		MemberSignUpRequest memberSignUpRequest = new MemberSignUpRequest(
+			"홍길동",
+			"hong@naver.com",
+			1L,
+			"01",
+			LocalDateTime.now(),
+			"1990-01-01",
+			"password1234");
+
+		authService.signUp(memberSignUpRequest);
+
+		Member savedMember = memberRepository.findByEmail("hong@naver.com")
+			.orElseThrow(() -> new RuntimeException("회원 저장 실패 "));
+
+		assertThat(savedMember.getName()).isEqualTo(memberSignUpRequest.name());
+		assertThat(savedMember.getDept().getId()).isEqualTo(memberSignUpRequest.dept());
+		assertThat(savedMember.getPosition().getCode()).isEqualTo(memberSignUpRequest.position());
+		assertThat(savedMember.getJoinDate()).isEqualTo(memberSignUpRequest.joinDate());
+
+		MemberInfo savedMemberInfo = memberInfoRepository.findById(savedMember.getId())
+			.orElseThrow(() -> new RuntimeException("회원 저장 실패 "));
+
+		assertThat(savedMemberInfo.getBirth()).isEqualTo(memberSignUpRequest.birth());
+		assertThat(savedMemberInfo.getEmail()).isEqualTo(memberSignUpRequest.email());
+		assertThat(
+			passwordEncoder.matches(memberSignUpRequest.password(), savedMemberInfo.getPassword())).isTrue();
+	}
+
 	@Nested
-	@DisplayName("회원가입 테스트")
-	class signUpTests {
+	@DisplayName("회원가입 실패 테스트")
+	class signUpFailTests {
 
 		@Test
-		@DisplayName("회원가입 성공 테스트")
-		void signUpSuccessTest() throws Exception {
+		@DisplayName("not found- dept")
+		void NotFoundDeptTest() throws Exception {
+
+			Long invalidDeptId = -99L;
+
 			MemberSignUpRequest memberSignUpRequest = new MemberSignUpRequest(
 				"홍길동",
 				"hong@naver.com",
-				1L,
+				invalidDeptId,
 				"01",
 				LocalDateTime.now(),
 				"1990-01-01",
 				"password1234");
 
-			authService.signUp(memberSignUpRequest);
+			NotFoundException notFoundException = assertThrows(NotFoundException.class,
+				() -> authService.signUp(memberSignUpRequest));
 
-			Member savedMember = memberRepository.findByEmail("hong@naver.com")
-				.orElseThrow(() -> new RuntimeException("회원 저장 실패 "));
-
-			assertThat(savedMember.getName()).isEqualTo(memberSignUpRequest.name());
-			assertThat(savedMember.getDept().getId()).isEqualTo(memberSignUpRequest.dept());
-			assertThat(savedMember.getPosition().getCode()).isEqualTo(memberSignUpRequest.position());
-			assertThat(savedMember.getJoinDate()).isEqualTo(memberSignUpRequest.joinDate());
-
-			MemberInfo savedMemberInfo = memberInfoRepository.findById(savedMember.getId())
-				.orElseThrow(() -> new RuntimeException("회원 저장 실패 "));
-
-			assertThat(savedMemberInfo.getBirth()).isEqualTo(memberSignUpRequest.birth());
-			assertThat(savedMemberInfo.getEmail()).isEqualTo(memberSignUpRequest.email());
-			assertThat(
-				passwordEncoder.matches(memberSignUpRequest.password(), savedMemberInfo.getPassword())).isTrue();
+			assertThat(notFoundException.getErrorCode()).isEqualTo(NotFoundErrorCode.NOT_FOUND_DEPT);
 		}
+
+		@Test
+		@DisplayName("not found- position")
+		void NotFoundPositionTest() throws Exception {
+
+			String invalidPosition = "invalidPosition";
+
+			MemberSignUpRequest memberSignUpRequest = new MemberSignUpRequest(
+				"홍길동",
+				"hong@naver.com",
+				1L,
+				invalidPosition,
+				LocalDateTime.now(),
+				"1990-01-01",
+				"password1234");
+
+			NotFoundException notFoundException = assertThrows(NotFoundException.class,
+				() -> authService.signUp(memberSignUpRequest));
+
+			assertThat(notFoundException.getErrorCode()).isEqualTo(NotFoundErrorCode.NOT_FOUND_POSITION);
+		}
+
 	}
 
 	@Test
@@ -172,26 +215,6 @@ public class AuthServiceTests {
 		// mockMvc.perform(post("/members")
 		// 		.header("Authorization", "Bearer " + jwtToken))
 		// 	.andExpect(status().isUnauthorized());
-	}
-
-	@Nested
-	@DisplayName("토큰 재발급 테스트")
-	class reissueTokenTests {
-		@Test
-		@DisplayName("토큰 재발급 성공")
-		void reissueSuccess() throws Exception {
-
-			TokenPairWithExpiration requestTokenPair = jwtTokenProvider.generateTokenPair(
-				new JwtMemberInfo(1L, "홍길동", Role.USER));
-
-			Thread.sleep(1000);
-
-			TokenPairWithExpiration responseTokenPair = authService.reissue(requestTokenPair.refreshToken());
-
-			assertThat(responseTokenPair.accessToken()).isNotNull();
-			assertThat(responseTokenPair.accessToken()).isNotEqualTo(requestTokenPair.accessToken());
-
-		}
 	}
 
 }

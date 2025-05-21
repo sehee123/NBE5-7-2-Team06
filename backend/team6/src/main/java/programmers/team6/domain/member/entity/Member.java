@@ -1,6 +1,7 @@
 package programmers.team6.domain.member.entity;
 
 import java.time.LocalDateTime;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -24,7 +25,6 @@ import programmers.team6.global.entity.BaseEntity;
 @Getter
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Getter
 public class Member extends BaseEntity {
 
 	@Id
@@ -35,11 +35,11 @@ public class Member extends BaseEntity {
 	@Column(nullable = false)
 	private String name;
 
-	@ManyToOne(fetch = FetchType.LAZY,cascade = CascadeType.PERSIST)
+	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "dept_id")
 	private Dept dept;
 
-	@ManyToOne(fetch = FetchType.LAZY,cascade = CascadeType.PERSIST)
+	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "position_id")
 	private Code position;
 
@@ -63,4 +63,18 @@ public class Member extends BaseEntity {
 		this.joinDate = joinDate;
 		this.role = role;
 	}
+
+	public void approve() {
+		if (this.role != Role.PENDING) {
+			throw new IllegalArgumentException("승인 대기 상태가 아닌 멤버는 권한을 변경할 수 없습니다.");
+		}
+		this.role = Role.USER;
+	}
+
+	public void validateDeletable() {
+		if (this.role != Role.PENDING) {
+			throw new IllegalArgumentException("해당 멤버는 승인된 멤버이므로 삭제할 수 없습니다.");
+		}
+	}
+
 }

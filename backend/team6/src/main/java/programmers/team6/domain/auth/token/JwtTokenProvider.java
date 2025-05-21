@@ -21,8 +21,11 @@ import programmers.team6.domain.auth.config.JwtConfiguration;
 import programmers.team6.domain.auth.dto.JwtMemberInfo;
 import programmers.team6.domain.auth.dto.TokenBody;
 import programmers.team6.domain.auth.dto.TokenPairWithExpiration;
+import programmers.team6.domain.auth.dto.response.AccessTokenResponse;
 import programmers.team6.domain.auth.service.JwtService;
 import programmers.team6.domain.member.enums.Role;
+import programmers.team6.global.exception.code.UnauthorizedErrorCode;
+import programmers.team6.global.exception.customException.UnauthorizedException;
 
 @Slf4j
 @Component
@@ -44,34 +47,42 @@ public class JwtTokenProvider {
 			jwtConfiguration.refreshTokenExpiration());
 	}
 
-	public boolean validate(String token) {
+	public AccessTokenResponse generateAccessToken(String refreshToken) {
+
+		TokenBody tokenBody = parseClaims(refreshToken);
+
+		JwtMemberInfo jwtMemberInfo = new JwtMemberInfo(tokenBody.id(), tokenBody.name(), tokenBody.role());
+
+		String accessToken = issueAccessToken(jwtMemberInfo);
+
+		return new AccessTokenResponse(accessToken, jwtConfiguration.accessTokenExpiration());
+	}
+
+	public void validate(String token) {
 		try {
 			Jws<Claims> claimsJws = Jwts.parser()
 				.verifyWith(getSecretKey())
 				.build()
 				.parseSignedClaims(token);
-
-			return true;
-		} catch (SecurityException | MalformedJwtException | SignatureException e) {
-			log.warn("유효하지 않은 JWT 서명: {}", e.getMessage());
+		} catch (SecurityException | SignatureException e) {
+			throw new UnauthorizedException(UnauthorizedErrorCode.UNAUTHORIZED_INVALID_SIGNATURE);
+		} catch (MalformedJwtException e) {
+			throw new UnauthorizedException(UnauthorizedErrorCode.UNAUTHORIZED_MALFORMED_TOKEN);
 		} catch (ExpiredJwtException e) {
-			log.warn("만료된 JWT: {}", e.getMessage());
+			throw new UnauthorizedException(UnauthorizedErrorCode.UNAUTHORIZED_EXPIRED_TOKEN);
 		} catch (UnsupportedJwtException e) {
-			log.warn("지원하지 않는 JWT 형식: {}", e.getMessage());
+			throw new UnauthorizedException(UnauthorizedErrorCode.UNAUTHORIZED_UNSUPPORTED_TOKEN);
 		} catch (IllegalArgumentException e) {
-			log.warn("잘못된 JWT 입력값: {}", e.getMessage());
+			throw new UnauthorizedException(UnauthorizedErrorCode.UNAUTHORIZED_ILLEGAL_ARGUMENT_TOKEN);
+		} catch (Exception e) {
+			throw new UnauthorizedException(UnauthorizedErrorCode.UNAUTHORIZED_INVALID_TOKEN);
 		}
-		return false;
 	}
 
-	public boolean isBlackListed(String accessToken) {
-
-		if (jwtService.isBlackListed(accessToken)) {
-			log.warn(" 블랙리스트 토큰 접근 시도: {}", accessToken);
-			return true;
+	public void validateNotBlackListed(String refreshToken) {
+		if (jwtService.isBlackListed(refreshToken)) {
+			throw new UnauthorizedException(UnauthorizedErrorCode.UNAUTHORIZED_BLACKLIST_TOKEN);
 		}
-
-		return false;
 	}
 
 	public TokenBody parseClaims(String token) {
@@ -120,7 +131,7 @@ public class JwtTokenProvider {
 		String header = request.getHeader(HEADER);
 
 		if (header != null && header.startsWith(BEARER)) {
-			return header.substring(7);
+			return header.substring(BEARER.length());
 		}
 		return null;
 	}

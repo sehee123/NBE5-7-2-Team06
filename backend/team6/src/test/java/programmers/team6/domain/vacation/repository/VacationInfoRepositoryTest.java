@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import programmers.team6.domain.member.entity.Member;
 import programmers.team6.domain.vacation.entity.VacationInfo;
 import programmers.team6.domain.vacation.repository.factory.TestMemberFactory;
-import programmers.team6.domain.vacation.rule.vacationgranteligiblities.VacationGrantEligibility;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = NONE)
@@ -31,13 +30,30 @@ class VacationInfoRepositoryTest {
 	private TestMemberFactory memberFactory;
 
 	@ParameterizedTest
-	@CsvSource(value = {"2026-10-31,1", "2026-10-30,0", "2026-09-30,1"}, delimiter = ',')
-	void 휴가대상자_검색(LocalDate now, int count) {
+	@CsvSource(value = {"2026-10-31,1", "2026-10-30,0"}, delimiter = ',')
+	void 연차대상자_검색(LocalDate now, int count) {
 		Member member = memberFactory.defaultMember();
-		vacationInfoRepository.save(new VacationInfo(15, 0, "testType", member.getId()));
+		VacationInfo info = vacationInfoRepository.save(new VacationInfo(15, 0, "testType", member.getId()));
 
-		List<VacationGrantEligibility> result = vacationInfoRepository.findEligibilities(now.minusYears(1), now);
+		List<VacationInfo> result = vacationInfoRepository.findAnnualVacationFrom(now.minusYears(1), now);
 
 		assertThat(result).hasSize(count);
+		if (count == 1) {
+			assertThat(info).isEqualTo(result.getFirst());
+		}
+	}
+
+	@ParameterizedTest
+	@CsvSource(value = {"2026-02-28,1", "2026-05-31,1", "2026-05-30,0"}, delimiter = ',')
+	void 월차대상자_검색(LocalDate now, int count) {
+		Member member = memberFactory.defaultMember();
+		VacationInfo info = vacationInfoRepository.save(new VacationInfo(15, 0, "testType", member.getId()));
+
+		List<VacationInfo> result = vacationInfoRepository.findMonthlyVacationFrom(now.minusYears(1), now);
+
+		assertThat(result).hasSize(count);
+		if (count == 1) {
+			assertThat(info).isEqualTo(result.getFirst());
+		}
 	}
 }

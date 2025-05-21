@@ -12,19 +12,18 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import programmers.team6.domain.auth.dto.TokenPairWithExpiration;
 import programmers.team6.domain.auth.dto.request.MemberLoginRequest;
 import programmers.team6.domain.auth.dto.request.MemberSignUpRequest;
-import programmers.team6.domain.auth.dto.request.RefreshTokenRequest;
+import programmers.team6.domain.auth.dto.response.AccessTokenResponse;
 import programmers.team6.domain.auth.dto.response.AuthTokenResponse;
 import programmers.team6.domain.auth.dto.response.LoginResponse;
 import programmers.team6.domain.auth.service.AuthService;
-import programmers.team6.domain.auth.token.JwtTokenProvider;
 import programmers.team6.domain.auth.util.JwtUtils;
 
 @RestController
@@ -33,20 +32,18 @@ import programmers.team6.domain.auth.util.JwtUtils;
 public class AuthController {
 
 	private final AuthService authService;
-	private final JwtTokenProvider jwtTokenProvider;
 
 	@PostMapping("/signup")
-	public ResponseEntity<Void> signUp(@RequestBody MemberSignUpRequest memberSignUpRequest) {
+	@ResponseStatus(HttpStatus.CREATED)
+	public void signUp(@RequestBody @Valid MemberSignUpRequest memberSignUpRequest) {
 
 		authService.signUp(memberSignUpRequest);
-
-		return ResponseEntity.status(HttpStatus.CREATED).build();
 	}
 
 	@GetMapping("/email-duplicate-check")
 	public ResponseEntity<Map<String, Boolean>> isEmailDuplicated(@RequestParam String email) {
 
-		boolean isEmailDuplicated = authService.isEmailDuplicated(email);
+		boolean isEmailDuplicated = authService.isExistsByEmail(email);
 
 		return ResponseEntity.ok(Map.of("isEmailDuplicated", isEmailDuplicated));
 	}
@@ -59,31 +56,22 @@ public class AuthController {
 
 		String refreshToken = loginResponse.refreshToken();
 
-		ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", refreshToken)
-			.httpOnly(true)
-			.secure(true)
-			.path("/")
-			.sameSite("Strict")
-			.maxAge(JwtUtils.calculateTtlMillis(loginResponse.refreshTokenExpiresIn()))
-			.build();
-
-		response.setHeader("Set-Cookie", refreshCookie.toString());
+		JwtUtils.addRefreshTokenCookie(response, refreshToken, loginResponse.refreshTokenExpiresIn());
 
 		return ResponseEntity.ok(Map.of("token", loginResponse.authTokenResponse()));
 	}
 
 	@PostMapping("/reissue")
-	public ResponseEntity<TokenPairWithExpiration> refresh(
-		@RequestBody @Valid RefreshTokenRequest refreshTokenRequest) {
-		String refreshToken = refreshTokenRequest.refreshToken();
+	public ResponseEntity<AccessTokenResponse> refresh(
+		@CookieValue("refreshToken") String refreshToken, HttpServletResponse response) {
 
-		TokenPairWithExpiration tokenPair = authService.reissue(refreshToken);
+		AccessTokenResponse accessToken = authService.reissue(refreshToken);
 
-		return ResponseEntity.ok(tokenPair);
+		return ResponseEntity.ok(accessToken);
 	}
 
 	@PostMapping("/logout")
-	public ResponseEntity<?> logout(@CookieValue("refreshToken") String refreshToken) {
+	public ResponseEntity<Void> logout(@CookieValue("refreshToken") String refreshToken) {
 
 		authService.addBlackList(refreshToken);
 

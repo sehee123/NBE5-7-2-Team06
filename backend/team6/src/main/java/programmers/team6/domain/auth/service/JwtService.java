@@ -20,8 +20,8 @@ public class JwtService {
 		stringRedisTemplate.opsForValue().set(key, "logout", expirationTime, TimeUnit.MILLISECONDS);
 	}
 
-	public boolean isBlackListed(String accessToken) {
-		return stringRedisTemplate.hasKey(PREFIX + accessToken);
+	public boolean isBlackListed(String refreshToken) {
+		return stringRedisTemplate.hasKey(PREFIX + refreshToken);
 	}
 
 }

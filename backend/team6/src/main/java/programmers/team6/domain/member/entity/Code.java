@@ -22,7 +22,6 @@ import programmers.team6.global.entity.BaseEntity;
 		@UniqueConstraint(columnNames = {"group_code", "code"})
 	}
 )
-@Getter
 public class Code extends BaseEntity {
 
 	@Id
@@ -41,6 +40,12 @@ public class Code extends BaseEntity {
 
 	@Builder
 	public Code(String groupCode, String code, String name) {
+		this.groupCode = groupCode;
+		this.code = code;
+		this.name = name;
+	}
+
+	public void updateCode(String groupCode, String code, String name) {
 		this.groupCode = groupCode;
 		this.code = code;
 		this.name = name;

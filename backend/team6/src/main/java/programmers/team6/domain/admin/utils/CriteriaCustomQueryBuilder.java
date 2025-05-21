@@ -2,12 +2,15 @@ package programmers.team6.domain.admin.utils;
 
 import java.util.List;
 
+import org.springframework.data.domain.Sort;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.From;
+import jakarta.persistence.criteria.Order;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.metamodel.SingularAttribute;
 
@@ -59,4 +62,20 @@ public class CriteriaCustomQueryBuilder<T> {
 		return typedQuery;
 	}
 
+	public CriteriaCustomQueryBuilder<T> orderBy(From<?, ?> root, Sort sort) {
+		List<Order> orders = toOrders(root, sort);
+		cq.orderBy(orders);
+		return this;
+	}
+
+	private List<Order> toOrders(From<?, ?> root, Sort sort) {
+		return sort.stream().map(order -> toOrder(root, order)).toList();
+	}
+
+	private Order toOrder(From<?, ?> root, Sort.Order order) {
+		if (order.isAscending()) {
+			return cb.asc(root.get(order.getProperty()));
+		}
+		return cb.desc(root.get(order.getProperty()));
+	}
 }
