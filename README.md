@@ -6,6 +6,7 @@
 ## 🏗️ 프로젝트 구조
 
 
+
 ## 🛠️ 기술 스택
 
 ### Backend
@@ -21,6 +22,13 @@
 - React
 - React Router
 - Axios
+
+## 시스템 구성도 
+![image](https://github.com/user-attachments/assets/7e1a9647-eb25-4287-9cac-835a5fcb62c3)
+
+## ERD
+![image](https://github.com/user-attachments/assets/b23030a8-c013-4aca-9d52-7f9dfd9a7dc0)
+
 
 ## 🙋 팀원소개 
 <table>
@@ -77,7 +85,7 @@
 | **영민** | - <br>-<br>- |
 | **지훈** | - <br>- <br>-  |
 | **경준** | - <br>- <br>-  |
-| **세희** | - Spring Security, JWT를 통한 인증,인가 <br>- 전체 휴가 캘린더  |
+| **세희** | - Spring Security, JWT를 통한 인증,인가 <br>- 전체 휴가 캘린더 <br> -공통 예외처리 |
 
 ## 📦 주요 기능
 
@@ -102,4 +110,6 @@
 
 ## 📂 화면
 
+## 📋 API
 
+## 🧐 트러블 슈팅 
